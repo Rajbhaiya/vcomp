@@ -13,11 +13,9 @@
 #  License can be found in < https://github.com/vasusen-code/VIDEOconvertor/blob/public/LICENSE> .
 
 import os
-
+import asyncio
 from telethon import events, Button
-
-from .. import Drone 
-
+from .. import Drone
 from main.plugins.rename import media_rename
 from main.plugins.compressor import compress
 from main.plugins.trimmer import trim
@@ -25,52 +23,118 @@ from main.plugins.convertor import mp3, flac, wav, mp4, mkv, webm, file, video
 from main.plugins.encoder import encode
 from main.plugins.ssgen import screenshot
 
-@Drone.on(events.NewMessage(incoming=True,func=lambda e: e.is_private))
+# Create an asyncio queue to manage the tasks
+processing_queue = asyncio.Queue()
+
+async def enqueue_task(event, msg, func, *args):
+    task = {"event": event, "msg": msg, "func": func, "args": args}
+    await processing_queue.put(task)
+    await event.edit("**Task added to the queue!**")
+
+async def process_queue():
+    while True:
+        task = await processing_queue.get()
+        event = task["event"]
+        msg = task["msg"]
+        func = task["func"]
+        args = task["args"]
+        await func(event, msg, *args)
+        processing_queue.task_done()
+
+async def encode(event, msg, scale):
+    await enqueue_task(event, msg, _encode, scale)
+
+async def compress(event, msg, ffmpeg_cmd=0):
+    await enqueue_task(event, msg, _compress, ffmpeg_cmd)
+
+asyncio.ensure_future(process_queue())
+
+@Drone.on(events.NewMessage(incoming=True, func=lambda e: e.is_private))
 async def compin(event):
     if event.is_private:
         media = event.media
         if media:
             video = event.file.mime_type
             if 'video' in video:
-                await event.reply("📽",
-                            buttons=[
-                                [Button.inline("ENCODE", data="encode"),
-                                 Button.inline("COMPRESS", data="compress")],
-                                [Button.inline("CONVERT", data="convert"),
-                                 Button.inline("RENAME", data="rename")],
-                                [Button.inline("SSHOTS", data="sshots"),
-                                 Button.inline("TRIM", data="trim")]
-                            ])
+                await event.reply("📽", buttons=[
+                    [Button.inline("ENCODE", data="encode"),
+                     Button.inline("COMPRESS", data="compress")],
+                    [Button.inline("CONVERT", data="convert"),
+                     Button.inline("RENAME", data="rename")],
+                    [Button.inline("SSHOTS", data="sshots"),
+                     Button.inline("TRIM", data="trim")]
+                ])
             elif 'png' in video:
                 return
             elif 'jpeg' in video:
                 return
             elif 'jpg' in video:
-                return    
+                return
             else:
-                await event.reply('📦',
-                            buttons=[  
-                                [Button.inline("RENAME", data="rename")]])
+                await event.reply('📦', buttons=[
+                    [Button.inline("RENAME", data="rename")]])
                 
 @Drone.on(events.callbackquery.CallbackQuery(data="encode"))
 async def _encode(event):
-    await event.edit("**🔀ENCODE**",
-                    buttons=[
-                        [Button.inline("240p", data="240"),
-                         Button.inline("360p", data="360")],
-                        [Button.inline("480p", data="480"),
-                         Button.inline("720p", data="720")],
-                        [Button.inline("x264", data="264"),
-                         Button.inline("x265", data="265")],
-                        [Button.inline("BACK", data="back")]])
+    await event.edit("**🔀ENCODE**", buttons=[
+        [Button.inline("240p", data="240"),
+         Button.inline("360p", data="360")],
+        [Button.inline("480p", data="480"),
+         Button.inline("720p", data="720")],
+        [Button.inline("x264", data="264"),
+         Button.inline("x265", data="265")],
+        [Button.inline("BACK", data="back")]])
+
+@Drone.on(events.callbackquery.CallbackQuery(data="265"))
+async def _265(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, compress, ffmpeg_cmd=3, ps_name="**ENCODING:**")
+
+@Drone.on(events.callbackquery.CallbackQuery(data="264"))
+async def _264(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, compress, ffmpeg_cmd=4, ps_name="**ENCODING:**")
+
+@Drone.on(events.callbackquery.CallbackQuery(data="240"))
+async def _240(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, encode, scale=240)
+
+@Drone.on(events.callbackquery.CallbackQuery(data="360"))
+async def _360(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, encode, scale=360)
+
+@Drone.on(events.callbackquery.CallbackQuery(data="480"))
+async def _480(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, encode, scale=480)
+
+@Drone.on(events.callbackquery.CallbackQuery(data="720"))
+async def _720(event):
+    button = await event.get_message()
+    msg = await button.get_reply_message()  
+    await enqueue_task(event, msg, encode, scale=720)
                          
 @Drone.on(events.callbackquery.CallbackQuery(data="compress"))
 async def _compress(event):
-    await event.edit("**🗜COMPRESS**",
-                    buttons=[
-                        [Button.inline("HEVC COMPRESS", data="hcomp"),
-                         Button.inline("FAST COMPRESS", data="fcomp")],
-                        [Button.inline("BACK", data="back")]])
+    await event.edit("**🗜COMPRESS**", buttons=[
+        [Button.inline("HEVC COMPRESS", data="hcomp"),
+         Button.inline("FAST COMPRESS", data="fcomp")],
+        [Button.inline("BACK", data="back")]])
+
+@Drone.on(events.callbackquery.CallbackQuery(data="hcomp"))
+async def hcomp(event):
+    await enqueue_task(event, msg, compress, ffmpeg_cmd=1)
+
+@Drone.on(events.callbackquery.CallbackQuery(data="fcomp"))
+async def fcomp(event):
+    await enqueue_task(event, msg, compress, ffmpeg_cmd=2)
                                           
 @Drone.on(events.callbackquery.CallbackQuery(data="convert"))
 async def convert(event):
