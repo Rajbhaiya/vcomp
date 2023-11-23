@@ -47,7 +47,7 @@ async def process_queue():
                     is_processing = False
                     processing_queue.task_done()
 
-async def task_add(event, msg, ffmpeg_cmd):
+async def task_compress(event, msg, ffmpeg_cmd):
     await enqueue_task(event, msg, compress, ffmpeg_cmd)
 
 async def task_encode(event, msg, scale):
