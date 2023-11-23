@@ -69,8 +69,7 @@ async def compin(event):
                 [Button.inline("ENCODE", data="encode"),
                  Button.inline("COMPRESS", data="compress")],
                 [Button.inline("SSHOTS", data="sshots"),
-                 Button.inline("TRIM", data="trim")]
-            ])
+                 Button.inline("TRIM", data="trim")]])
 
 @Drone.on(events.callbackquery.CallbackQuery(data="encode"))
 async def _encode(event):
@@ -86,7 +85,7 @@ async def _encode(event):
 @Drone.on(events.callbackquery.CallbackQuery(data="compress"))
 async def _compress(event):
     await event.edit("**🗜COMPRESS**", buttons=[
-        [Button.inline("HEVC COMPRESS", data="hcomp"),
+        [Button.inline("HEVC COMPRESS", data="hcomp")],
          Button.inline("FAST COMPRESS", data="fcomp")],
         [Button.inline("BACK", data="back")])
 
