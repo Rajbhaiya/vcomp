@@ -53,8 +53,8 @@ async def task_compress(event, msg, ffmpeg_cmd):
 async def task_encode(event, msg, scale):
     await enqueue_task(event, msg, encode, scale)
 
-async def enqueue_and_notify(event, msg, func, *args):
-    await enqueue_task(event, msg, func, *args)
+async def enqueue_and_notify(event, msg, func, *args, ffmpeg_cmd=None):
+    await enqueue_task(event, msg, func, *args, ffmpeg_cmd=ffmpeg_cmd)
     await event.edit("Your video has been added to the processing queue. Please wait.")
 
 asyncio.ensure_future(process_queue())
