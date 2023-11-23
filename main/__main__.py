@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 from . import Drone
 from main.utils import load_plugins
-from plugins.main import process_queue  # Replace with the actual module name
+from main.plugins.main import process_queue  # Replace with the actual module name
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
