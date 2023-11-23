@@ -23,29 +23,39 @@ from main.plugins.convertor import mp3, flac, wav, mp4, mkv, webm, file, video
 from main.plugins.encoder import encode
 from main.plugins.ssgen import screenshot
 
-# Create an asyncio queue to manage the tasks
 processing_queue = asyncio.Queue()
+processing_lock = asyncio.Lock()
+is_processing = False  # Variable to track whether a task is currently being processed
 
 async def enqueue_task(event, msg, func, *args):
     task = {"event": event, "msg": msg, "func": func, "args": args}
     await processing_queue.put(task)
-    await event.edit("**Task added to the queue!**")
 
 async def process_queue():
+    global is_processing
     while True:
-        task = await processing_queue.get()
-        event = task["event"]
-        msg = task["msg"]
-        func = task["func"]
-        args = task["args"]
-        await func(event, msg, *args)
-        processing_queue.task_done()
+        async with processing_lock:
+            if not is_processing:
+                task = await processing_queue.get()
+                if task is not None:
+                    is_processing = True
+                    event = task["event"]
+                    msg = task["msg"]
+                    func = task["func"]
+                    args = task["args"]
+                    await func(event, msg, *args)
+                    is_processing = False
+                    processing_queue.task_done()
 
-async def encode(event, msg, scale):
-    await enqueue_task(event, msg, _encode, scale)
+async def task_add(event, msg, ffmpeg_cmd):
+    await enqueue_task(event, msg, compress, ffmpeg_cmd)
 
-async def compress(event, msg, ffmpeg_cmd=0):
-    await enqueue_task(event, msg, _compress, ffmpeg_cmd)
+async def task_encode(event, msg, scale):
+    await enqueue_task(event, msg, encode, scale)
+
+async def enqueue_and_notify(event, msg, func, *args):
+    await enqueue_task(event, msg, func, *args)
+    await event.edit("Your video has been added to the processing queue. Please wait.")
 
 asyncio.ensure_future(process_queue())
 
@@ -55,25 +65,13 @@ async def compin(event):
         media = event.media
         if media:
             video = event.file.mime_type
-            if 'video' in video:
-                await event.reply("📽", buttons=[
-                    [Button.inline("ENCODE", data="encode"),
-                     Button.inline("COMPRESS", data="compress")],
-                    [Button.inline("CONVERT", data="convert"),
-                     Button.inline("RENAME", data="rename")],
-                    [Button.inline("SSHOTS", data="sshots"),
-                     Button.inline("TRIM", data="trim")]
-                ])
-            elif 'png' in video:
-                return
-            elif 'jpeg' in video:
-                return
-            elif 'jpg' in video:
-                return
-            else:
-                await event.reply('📦', buttons=[
-                    [Button.inline("RENAME", data="rename")]])
-                
+            await event.reply("📽", buttons=[
+                [Button.inline("ENCODE", data="encode"),
+                 Button.inline("COMPRESS", data="compress")],
+                [Button.inline("SSHOTS", data="sshots"),
+                 Button.inline("TRIM", data="trim")]
+            ])
+
 @Drone.on(events.callbackquery.CallbackQuery(data="encode"))
 async def _encode(event):
     await event.edit("**🔀ENCODE**", buttons=[
@@ -85,175 +83,21 @@ async def _encode(event):
          Button.inline("x265", data="265")],
         [Button.inline("BACK", data="back")]])
 
-@Drone.on(events.callbackquery.CallbackQuery(data="265"))
-async def _265(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, compress, ffmpeg_cmd=3, ps_name="**ENCODING:**")
-
-@Drone.on(events.callbackquery.CallbackQuery(data="264"))
-async def _264(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, compress, ffmpeg_cmd=4, ps_name="**ENCODING:**")
-
-@Drone.on(events.callbackquery.CallbackQuery(data="240"))
-async def _240(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, encode, scale=240)
-
-@Drone.on(events.callbackquery.CallbackQuery(data="360"))
-async def _360(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, encode, scale=360)
-
-@Drone.on(events.callbackquery.CallbackQuery(data="480"))
-async def _480(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, encode, scale=480)
-
-@Drone.on(events.callbackquery.CallbackQuery(data="720"))
-async def _720(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await enqueue_task(event, msg, encode, scale=720)
-                         
 @Drone.on(events.callbackquery.CallbackQuery(data="compress"))
 async def _compress(event):
     await event.edit("**🗜COMPRESS**", buttons=[
         [Button.inline("HEVC COMPRESS", data="hcomp"),
          Button.inline("FAST COMPRESS", data="fcomp")],
-        [Button.inline("BACK", data="back")]])
+        [Button.inline("BACK", data="back")])
 
-@Drone.on(events.callbackquery.CallbackQuery(data="hcomp"))
-async def hcomp(event):
-    await enqueue_task(event, msg, compress, ffmpeg_cmd=1)
-
-@Drone.on(events.callbackquery.CallbackQuery(data="fcomp"))
-async def fcomp(event):
-    await enqueue_task(event, msg, compress, ffmpeg_cmd=2)
-                                          
-@Drone.on(events.callbackquery.CallbackQuery(data="convert"))
-async def convert(event):
-    await event.edit("**🔃CONVERT**",
-                    buttons=[
-                        [Button.inline("MP3", data="mp3"),
-                         Button.inline("FLAC", data="flac"),
-                         Button.inline("WAV", data="wav")],
-                        [Button.inline("MP4", data="mp4"),
-                         Button.inline("WEBM", data="webm"),
-                         Button.inline("MKV", data="mkv")],
-                        [Button.inline("FILE", data="file"),
-                         Button.inline("VIDEO", data="video")],
-                        [Button.inline("BACK", data="back")]])
-                        
 @Drone.on(events.callbackquery.CallbackQuery(data="back"))
 async def back(event):
     await event.edit("📽", buttons=[
                     [Button.inline("ENCODE", data="encode"),
                      Button.inline("COMPRESS", data="compress")],
-                    [Button.inline("CONVERT", data="convert"),
-                     Button.inline("RENAME", data="rename")],
                     [Button.inline("SSHOTS", data="sshots"),
                      Button.inline("TRIM", data="trim")]])
-    
-#-----------------------------------------------------------------------------------------
-
-@Drone.on(events.callbackquery.CallbackQuery(data="mp3"))
-async def vtmp3(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    if not os.path.isdir("audioconvert"):
-        await event.delete()
-        os.mkdir("audioconvert")
-        await mp3(event, msg)
-        if os.path.isdir("audioconvert"):
-            os.rmdir("audioconvert")
-    else:
-        await event.edit("Another process in progress!")
-        
-@Drone.on(events.callbackquery.CallbackQuery(data="flac"))
-async def vtflac(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    if not os.path.isdir("audioconvert"):
-        await event.delete()
-        os.mkdir("audioconvert")
-        await flac(event, msg)
-        if os.path.isdir("audioconvert"):
-            os.rmdir("audioconvert")
-    else:
-        await event.edit("Another process in progress!")
-        
-@Drone.on(events.callbackquery.CallbackQuery(data="wav"))
-async def vtwav(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    if not os.path.isdir("audioconvert"):
-        await event.delete()
-        os.mkdir("audioconvert")
-        await wav(event, msg)
-        if os.path.isdir("audioconvert"):
-            os.rmdir("audioconvert")
-    else:
-        await event.edit("Another process in progress!")
-        
-@Drone.on(events.callbackquery.CallbackQuery(data="mp4"))
-async def vtmp4(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    await event.delete()
-    await mp4(event, msg)
-    
-@Drone.on(events.callbackquery.CallbackQuery(data="mkv"))
-async def vtmkv(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    await event.delete()
-    await mkv(event, msg)  
-    
-@Drone.on(events.callbackquery.CallbackQuery(data="webm"))
-async def vtwebm(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    await event.delete()
-    await webm(event, msg)  
-    
-@Drone.on(events.callbackquery.CallbackQuery(data="file"))
-async def vtfile(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    await event.delete()
-    await file(event, msg)    
-
-@Drone.on(events.callbackquery.CallbackQuery(data="video"))
-async def ftvideo(event):
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
-    await event.delete()
-    await video(event, msg)
-    
-@Drone.on(events.callbackquery.CallbackQuery(data="rename"))
-async def rename(event):                            
-    button = await event.get_message()
-    msg = await button.get_reply_message()  
-    await event.delete()
-    markup = event.client.build_reply_markup(Button.force_reply())
-    async with Drone.conversation(event.chat_id) as conv: 
-        cm = await conv.send_message("Send me a new name for the file as a `reply` to this message.\n\n**NOTE:** `.ext` is not required.", buttons=markup)                              
-        try:
-            m = await conv.get_reply()
-            new_name = m.text
-            await cm.delete()                    
-            if not m:                
-                return await cm.edit("No response found.")
-        except Exception as e: 
-            print(e)
-            return await cm.edit("An error occured while waiting for the response.")
-    await media_rename(event, msg, new_name)                     
+#-----------------------------------------------------------------------------------------               
                    
 @Drone.on(events.callbackquery.CallbackQuery(data="hcomp"))
 async def hcomp(event):
@@ -266,8 +110,8 @@ async def hcomp(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
- 
+        await enqueue_and_notify(event, msg, task_compress, ffmpeg_cmd=1)
+
 @Drone.on(events.callbackquery.CallbackQuery(data="fcomp"))
 async def fcomp(event):
     button = await event.get_message()
@@ -279,7 +123,7 @@ async def fcomp(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_compress, ffmpeg_cmd=2)
   
 @Drone.on(events.callbackquery.CallbackQuery(data="265"))
 async def _265(event):
@@ -292,7 +136,7 @@ async def _265(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_compress, ffmpeg_cmd=3)
         
 @Drone.on(events.callbackquery.CallbackQuery(data="264"))
 async def _264(event):
@@ -305,7 +149,7 @@ async def _264(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_compress, ffmpeg_cmd=4)
     
 
 @Drone.on(events.callbackquery.CallbackQuery(data="240"))
@@ -319,7 +163,7 @@ async def _240(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_encode, scale=240)
         
 @Drone.on(events.callbackquery.CallbackQuery(data="360"))
 async def _360(event):
@@ -332,7 +176,7 @@ async def _360(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_encode, scale=360)
         
 @Drone.on(events.callbackquery.CallbackQuery(data="480"))
 async def _480(event):
@@ -345,7 +189,7 @@ async def _480(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_encode, scale=480)
         
 @Drone.on(events.callbackquery.CallbackQuery(data="720"))
 async def _720(event):
@@ -358,7 +202,7 @@ async def _720(event):
         if os.path.isdir("encodemedia"):
             os.rmdir("encodemedia")
     else:
-        await event.edit("Another process in progress!")
+        await enqueue_and_notify(event, msg, task_encode, scale=720)
         
 @Drone.on(events.callbackquery.CallbackQuery(data="sshots"))
 async def ss_(event):
