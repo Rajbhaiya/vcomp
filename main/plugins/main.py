@@ -85,9 +85,9 @@ async def _encode(event):
 @Drone.on(events.callbackquery.CallbackQuery(data="compress"))
 async def _compress(event):
     await event.edit("**🗜COMPRESS**", buttons=[
-        [Button.inline("HEVC COMPRESS", data="hcomp")],
+        [Button.inline("HEVC COMPRESS", data="hcomp"),
          Button.inline("FAST COMPRESS", data="fcomp")],
-        [Button.inline("BACK", data="back")])
+        [Button.inline("BACK", data="back")]])
 
 @Drone.on(events.callbackquery.CallbackQuery(data="back"))
 async def back(event):
