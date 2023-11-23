@@ -27,8 +27,8 @@ processing_queue = asyncio.Queue()
 processing_lock = asyncio.Lock()
 is_processing = False  # Variable to track whether a task is currently being processed
 
-async def enqueue_task(event, msg, func, *args):
-    task = {"event": event, "msg": msg, "func": func, "args": args}
+async def enqueue_task(event, msg, func, *args, ffmpeg_cmd=None):
+    task = {"event": event, "msg": msg, "func": func, "args": args, "ffmpeg_cmd": ffmpeg_cmd}
     await processing_queue.put(task)
 
 async def process_queue():
