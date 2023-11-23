@@ -20,7 +20,7 @@ for name in files:
 print("Bot Deployed Succesfully")
 
 async def main():
-    Drone.run_until_disconnected()
+    await Drone.run_until_disconnected()
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
