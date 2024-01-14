@@ -1,4 +1,4 @@
-telethon==1.27.0
+telethon
 cryptg
 dnspython
 https://github.com/vasusen-code/ethon/archive/refs/tags/v0.1.4.zip
