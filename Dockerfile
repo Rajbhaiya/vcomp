@@ -1,4 +1,4 @@
-FROM python:3.9.2-slim-buster
+FROM python:3.11
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -qq update && apt -qq install -y git ffmpeg
 RUN pip install --upgrade pip
